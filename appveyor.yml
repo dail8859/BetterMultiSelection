@@ -1,0 +1,67 @@
+version: 1.1.{build}
+image: Visual Studio 2017
+
+
+environment:
+  matrix:
+    - PlatformToolset: v140_xp
+    - PlatformToolset: v141_xp
+
+platform:
+    - x64
+    - Win32
+
+configuration:
+    - Release
+    - Debug
+
+install:
+    - if "%platform%"=="x64" set archi=x64
+    - if "%platform%"=="x64" set vsxprojplatformname=x64
+    - if "%platform%"=="Win32" set archi=x86
+    - if "%platform%"=="Win32" set vsxprojplatformname=Win32
+    - call "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvarsall.bat" %archi%
+
+build_script:
+    - cd "%APPVEYOR_BUILD_FOLDER%"
+    - msbuild BetterMultiSelection.sln /m /p:configuration="%configuration%" /p:platform="%vsxprojplatformname%" /p:PlatformToolset="%PlatformToolset%" /logger:"C:\Program Files\AppVeyor\BuildAgent\Appveyor.MSBuildLogger.dll"
+
+after_build:
+    - cd "%APPVEYOR_BUILD_FOLDER%"\src
+    - ps: >-
+
+        if ($env:VSXPROJPLATFORMNAME -eq "x64" -and $env:CONFIGURATION -eq "Release") {
+            #Push-AppveyorArtifact "src\bin\$($env:CONFIGURATION)_$($env:VSXPROJPLATFORMNAME)\BetterMultiSelection_64.dll" -FileName BetterMultiSelection_64.dll
+        }
+
+        if ($env:VSXPROJPLATFORMNAME -eq "Win32" -and $env:CONFIGURATION -eq "Release") {
+            #Push-AppveyorArtifact "src\bin\$($env:CONFIGURATION)_$($env:VSXPROJPLATFORMNAME)\BetterMultiSelection.dll" -FileName BetterMultiSelection.dll
+        }
+
+        if ($($env:APPVEYOR_REPO_TAG) -eq "true" -and $env:CONFIGURATION -eq "Release" -and $env:PLATFORMTOOLSET -eq "v140_xp") {
+            if($env:VSXPROJPLATFORMNAME -eq "x64"){
+                $ZipFileName = "BetterMultiSelection_$($env:APPVEYOR_REPO_TAG_NAME)_x64.zip"
+                7z a $ZipFileName "%APPVEYOR_BUILD_FOLDER%\src\bin\$($env:CONFIGURATION)_$($env:VSXPROJPLATFORMNAME)\BetterMultiSelection_64.dll"
+            }
+            if($env:VSXPROJPLATFORMNAME -eq "Win32"){
+                $ZipFileName = "BetterMultiSelection_$($env:APPVEYOR_REPO_TAG_NAME)_x86.zip"
+                7z a $ZipFileName "%APPVEYOR_BUILD_FOLDER%\src\bin\$($env:CONFIGURATION)_$($env:VSXPROJPLATFORMNAME)\BetterMultiSelection.dll"
+            }
+        }
+
+artifacts:
+  - path: BetterMultiSelection_*.zip
+    name: releases
+
+deploy:
+    provider: GitHub
+    auth_token:
+        secure: !!TODO, see https://www.appveyor.com/docs/deployment/github/#provider-settings!!
+    artifact: releases
+    draft: false
+    prerelease: false
+    force_update: true
+    on:
+        appveyor_repo_tag: true
+        PlatformToolset: v140_xp
+        configuration: Release
