@@ -15,7 +15,7 @@ Make multiple or rectangular selections and move the cursor. Supported cursor mo
 - Word Left (`Ctrl+Left`)
 - Word Right (`Ctrl+Right`)
 
-You can also hold down `Shift` to extend the selections.
+You can also hold down `Shift` to extend the selections, or press `Enter` to insert new lines.
 
 ## Installation
 Install the plugin by downloading it from the [Release](https://github.com/dail8859/BetterMultiSelection/releases) page and copy `BetterMultiSelection.dll` to your `plugins` folder.

@@ -50,6 +50,9 @@ struct Selection {
 
 	int start() const { return min(caret, anchor); }
 	int end() const { return max(caret, anchor); }
+	int length() const { return end() - start(); }
+	void set(int pos) { anchor = caret = pos; }
+	void offset(int offset) { anchor += offset; caret += offset; }
 };
 
 static FuncItem funcItem[] = {
@@ -102,6 +105,15 @@ static std::vector<Selection> GetSelections() {
 	}
 
 	return selections;
+}
+
+static void SetSelections(const std::vector<Selection> &selections) {
+	for (size_t i = 0; i < selections.size(); ++i) {
+		if (i == 0)
+			editor.SetSelection(selections[i].caret, selections[i].anchor);
+		else
+			editor.AddSelection(selections[i].caret, selections[i].anchor);
+	}
 }
 
 static void Home(Selection &selection, bool extend) {
@@ -254,12 +266,7 @@ static void ManipulateSelections(T manipulate, bool extend) {
 		return lhs.start() == rhs.start() && lhs.end() == rhs.end();
 	}), selections.end());
 
-	for (size_t i = 0; i < selections.size(); ++i) {
-		if (i == 0)
-			editor.SetSelection(selections[i].caret, selections[i].anchor);
-		else
-			editor.AddSelection(selections[i].caret, selections[i].anchor);
-	}
+	SetSelections(selections);
 }
 
 LRESULT CALLBACK KeyboardProc(int ncode, WPARAM wparam, LPARAM lparam) {
@@ -292,6 +299,39 @@ LRESULT CALLBACK KeyboardProc(int ncode, WPARAM wparam, LPARAM lparam) {
 				}
 				else if (wparam == VK_END) {
 					ManipulateSelections(End, IsShiftPressed());
+					return TRUE;
+				}
+				else if (wparam == VK_RETURN) {
+					auto selections = GetSelections();
+
+					editor.ClearSelections();
+
+					std::sort(selections.begin(), selections.end(), [](const auto &lhs, const auto &rhs) {
+						return lhs.start() < rhs.start() || (!(rhs.start() < lhs.start()) && lhs.end() < rhs.end());
+					});
+
+					editor.BeginUndoAction();
+
+					const char *eols[] = { "\r\n", "\r", "\n" };
+					const char *eol = eols[editor.GetEOLMode()];
+					int eol_len = static_cast<int>(strlen(eol));
+
+					int totalOffset = 0;
+					for (auto &selection : selections) {
+						selection.offset(totalOffset);
+
+						editor.SetTargetRange(selection.start(), selection.end());
+						editor.ReplaceTarget(eol_len, eol);
+
+						totalOffset += eol_len - selection.length();
+						selection.offset(eol_len - selection.length());
+						selection.set(selection.end());
+					}
+
+					editor.EndUndoAction();
+
+					SetSelections(selections);
+
 					return TRUE;
 				}
 			}
