@@ -1,4 +1,7 @@
 # BetterMultiSelection
+
+[![Build status](https://ci.appveyor.com/api/projects/status/github/dail8859/BetterMultiSelection?branch=master&svg=true)](https://ci.appveyor.com/project/dail8859/BetterMultiSelection/branch/master)
+
 Notepad++ plugin to provide better cursor movements when using multiple selections.
 
 **Note:** This is still in early development. It has not been tested with non-US keyboard layouts. This does have some minor quirks (such as the cursor not always blinking correctly) that are a side effect of the implementation.
