@@ -246,6 +246,36 @@ static void WordRight(Selection &selection, bool extend) {
 	}
 }
 
+template<typename It>
+It uniquify(It begin, It const end)
+{
+	std::vector<It> v;
+	v.reserve(static_cast<size_t>(std::distance(begin, end)));
+
+	for (It i = begin; i != end; ++i)
+		v.push_back(i);
+
+	std::sort(v.begin(), v.end(), [](const auto &lhs, const auto &rhs) {
+		return (*lhs).start() < (*rhs).start() || (!((*rhs).start() < (*lhs).start()) && (*lhs).end() < (*rhs).end());
+	});
+
+	v.erase(std::unique(v.begin(), v.end(), [](const auto &lhs, const auto &rhs) {
+		return (*lhs).start() == (*rhs).start() && (*lhs).end() == (*rhs).end();
+	}), v.end());
+
+	std::sort(v.begin(), v.end());
+
+	size_t j = 0;
+	for (It i = begin; i != end && j != v.size(); ++i) {
+		if (i == v[j]) {
+			using std::iter_swap; iter_swap(i, begin);
+			++j;
+			++begin;
+		}
+	}
+	return begin;
+}
+
 template<typename T>
 static void ManipulateSelections(T manipulate, bool extend) {
 	auto selections = GetSelections();
@@ -255,16 +285,47 @@ static void ManipulateSelections(T manipulate, bool extend) {
 	for (auto &selection : selections)
 		manipulate(selection, extend);
 
-	// Sort the selections so only unique ones can be kept
+	selections.erase(uniquify(selections.begin(), selections.end()), selections.end());
+
+	SetSelections(selections);
+}
+
+// Create a closure that simply calls a SCI_XXX message
+static auto SimpleEdit(int message) {
+	return [message](Selection &selection) {
+		editor.SetSelection(selection.caret, selection.anchor);
+		editor.Call(message);
+
+		selection.caret = editor.GetSelectionNCaret(0);
+		selection.anchor = editor.GetSelectionNAnchor(0);
+	};
+}
+
+template<typename T>
+static void EditSelections(T edit) {
+	auto selections = GetSelections();
+
+	editor.ClearSelections();
+
 	std::sort(selections.begin(), selections.end(), [](const auto &lhs, const auto &rhs) {
 		return lhs.start() < rhs.start() || (!(rhs.start() < lhs.start()) && lhs.end() < rhs.end());
 	});
 
-	// Erase anything that directly overlaps with another one
-	// Note: Partially overlapping selections are ok...SciTE also allows overlapping selections
-	selections.erase(std::unique(selections.begin(), selections.end(), [](const auto &lhs, const auto &rhs) {
-		return lhs.start() == rhs.start() && lhs.end() == rhs.end();
-	}), selections.end());
+	editor.BeginUndoAction();
+
+	int totalOffset = 0;
+	for (auto &selection : selections) {
+		selection.offset(totalOffset);
+		const int length = editor.GetLength();
+
+		edit(selection);
+
+		totalOffset += editor.GetLength() - length;
+	}
+
+	editor.EndUndoAction();
+
+	selections.erase(uniquify(selections.begin(), selections.end()), selections.end());
 
 	SetSelections(selections);
 }
@@ -281,6 +342,14 @@ LRESULT CALLBACK KeyboardProc(int ncode, WPARAM wparam, LPARAM lparam) {
 				else if (wparam == VK_RIGHT) {
 					UpdateCharClassifier();
 					ManipulateSelections(WordRight, IsShiftPressed());
+					return TRUE;
+				}
+				else if (wparam == VK_BACK) {
+					EditSelections(SimpleEdit(SCI_DELWORDLEFT));
+					return TRUE;
+				}
+				else if (wparam == VK_DELETE) {
+					EditSelections(SimpleEdit(SCI_DELWORDRIGHT));
 					return TRUE;
 				}
 			}
@@ -302,36 +371,7 @@ LRESULT CALLBACK KeyboardProc(int ncode, WPARAM wparam, LPARAM lparam) {
 					return TRUE;
 				}
 				else if (wparam == VK_RETURN) {
-					auto selections = GetSelections();
-
-					editor.ClearSelections();
-
-					std::sort(selections.begin(), selections.end(), [](const auto &lhs, const auto &rhs) {
-						return lhs.start() < rhs.start() || (!(rhs.start() < lhs.start()) && lhs.end() < rhs.end());
-					});
-
-					editor.BeginUndoAction();
-
-					const char *eols[] = { "\r\n", "\r", "\n" };
-					const char *eol = eols[editor.GetEOLMode()];
-					int eol_len = static_cast<int>(strlen(eol));
-
-					int totalOffset = 0;
-					for (auto &selection : selections) {
-						selection.offset(totalOffset);
-
-						editor.SetTargetRange(selection.start(), selection.end());
-						editor.ReplaceTarget(eol_len, eol);
-
-						totalOffset += eol_len - selection.length();
-						selection.offset(eol_len - selection.length());
-						selection.set(selection.end());
-					}
-
-					editor.EndUndoAction();
-
-					SetSelections(selections);
-
+					EditSelections(SimpleEdit(SCI_NEWLINE));
 					return TRUE;
 				}
 			}
