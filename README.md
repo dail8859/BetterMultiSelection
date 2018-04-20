@@ -4,7 +4,7 @@
 
 Notepad++ plugin to provide better cursor movements when using multiple selections.
 
-**Note:** This is still in early development. It has not been tested with non-US keyboard layouts. This does have some minor quirks (such as the cursor not always blinking correctly) that are a side effect of the implementation.
+**Note:** It has may not be fully supported on non-US keyboard layouts. This does have some minor quirks (such as the cursor not always blinking correctly) that are a side effect of the implementation.
 
 ![Demo](/img/Demo.gif)
 
@@ -17,14 +17,17 @@ Make multiple or rectangular selections and move the cursor. Supported cursor mo
 - End
 - Word Left (`Ctrl+Left`)
 - Word Right (`Ctrl+Right`)
+- Delete Word Left (`Ctrl+Backspace`)
+- Delete Word Right (`Ctrl+Delete`)
+- Enter
 
-You can also hold down `Shift` to extend the selections, or press `Enter` to insert new lines.
+You can also hold down `Shift` to extend the selections.
 
 ## Installation
-Install the plugin by downloading it from the [Release](https://github.com/dail8859/BetterMultiSelection/releases) page and copy `BetterMultiSelection.dll` to your `plugins` folder.
+Install the plugin by the Plugin Manager, or manually by downloading it from the [Release](https://github.com/dail8859/BetterMultiSelection/releases) page and copy `BetterMultiSelection.dll` to your `plugins` folder.
 
 ## Development
-The code has been developed using MSVC 2015. Building the code will generate the DLL which can be used by Notepad++. For convenience, MSVC copies the DLL into the Notepad++ plugin directory.
+The code has been developed using Visual Studio 2015. Building the code will generate the DLL which can be used by Notepad++. For convenience, Visual Studio copies the DLL into the Notepad++ plugin directory.
 
 ## License
 This code is released under the [GNU General Public License version 2](http://www.gnu.org/licenses/gpl-2.0.txt).
