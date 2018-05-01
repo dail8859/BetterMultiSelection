@@ -200,13 +200,11 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="CharClassify.cpp" />
     <ClCompile Include="Dialogs\AboutDialog.cpp" />
     <ClCompile Include="Dialogs\Hyperlinks.cpp" />
     <ClCompile Include="Main.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="CharClassify.h" />
     <ClInclude Include="Dialogs\AboutDialog.h" />
     <ClInclude Include="Dialogs\Hyperlinks.h" />
     <ClInclude Include="Dialogs\resource.h" />

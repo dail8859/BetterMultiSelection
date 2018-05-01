@@ -17,7 +17,6 @@
 // Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
 #include "AboutDialog.h"
-#include "CharClassify.h"
 #include "resource.h"
 #include "PluginInterface.h"
 #include "ScintillaGateway.h"
@@ -35,7 +34,6 @@ static NppData nppData;
 static HHOOK hook = NULL;
 static bool hasFocus = true;
 static ScintillaGateway editor;
-static CharClassify cc;
 
 static void enableBetterMultiSelection();
 static void showAbout();
@@ -116,136 +114,6 @@ static void SetSelections(const std::vector<Selection> &selections) {
 	}
 }
 
-static void Home(Selection &selection, bool extend) {
-	selection.caret = editor.PositionFromLine(editor.LineFromPosition(selection.caret));
-
-	if (!extend) {
-		selection.anchor = selection.caret;
-	}
-}
-
-static void End(Selection &selection, bool extend) {
-	selection.caret = editor.GetLineEndPosition(editor.LineFromPosition(selection.caret));
-
-	if (!extend) {
-		selection.anchor = selection.caret;
-	}
-}
-
-static void Left(Selection &selection, bool extend) {
-	if (extend) {
-		selection.caret = editor.PositionBefore(selection.caret);
-	}
-	else if (selection.anchor == selection.caret) {
-		selection.caret = selection.anchor = editor.PositionBefore(selection.caret);
-	}
-	else {
-		selection.caret = selection.anchor = min(selection.caret, selection.anchor);
-	}
-}
-
-static void Right(Selection &selection, bool extend) {
-	if (extend) {
-		selection.caret = editor.PositionAfter(selection.caret);
-	}
-	else if (selection.anchor == selection.caret) {
-		selection.anchor = selection.caret = editor.PositionAfter(selection.caret);
-	}
-	else {
-		selection.caret = selection.anchor = max(selection.caret, selection.anchor);
-	}
-}
-
-static void UpdateCharClassifier() {
-	cc.SetDefaultCharClasses(true);
-	cc.SetCharClasses(reinterpret_cast<const unsigned char*>(editor.GetWordChars().c_str()), CharClassify::ccWord);
-	cc.SetCharClasses(reinterpret_cast<const unsigned char*>(editor.GetWhitespaceChars().c_str()), CharClassify::ccSpace);
-	cc.SetCharClasses(reinterpret_cast<const unsigned char*>(editor.GetPunctuationChars().c_str()), CharClassify::ccPunctuation);
-}
-
-/**
-* Find the start of the next word in either a forward (delta >= 0) or backwards direction
-* (delta < 0).
-* This is looking for a transition between character classes although there is also some
-* additional movement to transit white space.
-* Used by cursor movement by word commands.
-*/
-static int NextWordStart(int pos, int delta) {
-	if (delta < 0) {
-		while (pos > 0 && (cc.GetClass(editor.GetCharAt(editor.PositionBefore(pos))) == CharClassify::ccSpace))
-			pos--;
-		if (pos > 0) {
-			CharClassify::cc ccStart = cc.GetClass(editor.GetCharAt(editor.PositionBefore(pos)));
-			while (pos > 0 && (cc.GetClass(editor.GetCharAt(editor.PositionBefore(pos))) == ccStart)) {
-				pos--;
-			}
-		}
-	}
-	else {
-		const int length = editor.GetLength();
-		CharClassify::cc ccStart = cc.GetClass(editor.GetCharAt(pos));
-		while (pos < length && (cc.GetClass(editor.GetCharAt(pos)) == ccStart))
-			pos++;
-		while (pos < length && (cc.GetClass(editor.GetCharAt(pos)) == CharClassify::ccSpace))
-			pos++;
-	}
-	return pos;
-}
-
-/**
-* Find the end of the next word in either a forward (delta >= 0) or backwards direction
-* (delta < 0).
-* This is looking for a transition between character classes although there is also some
-* additional movement to transit white space.
-* Used by cursor movement by word commands.
-*/
-static int NextWordEnd(int pos, int delta) {
-	if (delta < 0) {
-		if (pos > 0) {
-			CharClassify::cc ccStart = cc.GetClass(editor.GetCharAt(editor.PositionBefore(pos)));
-			if (ccStart != CharClassify::ccSpace) {
-				while (pos > 0 && cc.GetClass(editor.GetCharAt(editor.PositionBefore(pos))) == ccStart) {
-					pos--;
-				}
-			}
-			while (pos > 0 && cc.GetClass(editor.GetCharAt(editor.PositionBefore(pos))) == CharClassify::ccSpace) {
-				pos--;
-			}
-		}
-	}
-	else {
-		const int length = editor.GetLength();
-		while (pos < length && cc.GetClass(editor.GetCharAt(pos)) == CharClassify::ccSpace) {
-			pos++;
-		}
-		if (pos < length) {
-			CharClassify::cc ccStart = cc.GetClass(editor.GetCharAt(pos));
-			while (pos < length && cc.GetClass(editor.GetCharAt(pos)) == ccStart) {
-				pos++;
-			}
-		}
-	}
-	return pos;
-}
-
-static void WordLeft(Selection &selection, bool extend) {
-	selection.caret = NextWordStart(selection.caret, -1);
-
-	if (!extend) {
-		selection.anchor = selection.caret;
-	}
-}
-
-static void WordRight(Selection &selection, bool extend) {
-	if (extend) {
-		selection.caret = NextWordEnd(selection.caret, 1);
-	}
-	else {
-		selection.caret = NextWordStart(selection.caret, 1);
-		selection.anchor = selection.caret;
-	}
-}
-
 template<typename It>
 It uniquify(It begin, It const end)
 {
@@ -274,20 +142,6 @@ It uniquify(It begin, It const end)
 		}
 	}
 	return begin;
-}
-
-template<typename T>
-static void ManipulateSelections(T manipulate, bool extend) {
-	auto selections = GetSelections();
-
-	editor.ClearSelections();
-
-	for (auto &selection : selections)
-		manipulate(selection, extend);
-
-	selections.erase(uniquify(selections.begin(), selections.end()), selections.end());
-
-	SetSelections(selections);
 }
 
 // Create a closure that simply calls a SCI_XXX message
@@ -335,13 +189,11 @@ LRESULT CALLBACK KeyboardProc(int ncode, WPARAM wparam, LPARAM lparam) {
 		if (hasFocus && editor.GetSelections() > 1) {
 			if (IsControlPressed()) {
 				if (wparam == VK_LEFT) {
-					UpdateCharClassifier();
-					ManipulateSelections(WordLeft, IsShiftPressed());
+					EditSelections(SimpleEdit(IsShiftPressed() ? SCI_WORDLEFTEXTEND : SCI_WORDLEFT));
 					return TRUE; // This key has been "handled" and won't propogate
 				}
 				else if (wparam == VK_RIGHT) {
-					UpdateCharClassifier();
-					ManipulateSelections(WordRight, IsShiftPressed());
+					EditSelections(SimpleEdit(IsShiftPressed() ? SCI_WORDRIGHTENDEXTEND : SCI_WORDRIGHT));
 					return TRUE;
 				}
 				else if (wparam == VK_BACK) {
@@ -355,19 +207,19 @@ LRESULT CALLBACK KeyboardProc(int ncode, WPARAM wparam, LPARAM lparam) {
 			}
 			else {
 				if (wparam == VK_LEFT) {
-					ManipulateSelections(Left, IsShiftPressed());
+					EditSelections(SimpleEdit(IsShiftPressed() ? SCI_CHARLEFTEXTEND : SCI_CHARLEFT));
 					return TRUE;
 				}
 				else if (wparam == VK_RIGHT) {
-					ManipulateSelections(Right, IsShiftPressed());
+					EditSelections(SimpleEdit(IsShiftPressed() ? SCI_CHARRIGHTEXTEND : SCI_CHARRIGHT));
 					return TRUE;
 				}
 				else if (wparam == VK_HOME) {
-					ManipulateSelections(Home, IsShiftPressed());
+					EditSelections(SimpleEdit(IsShiftPressed() ? SCI_VCHOMEWRAPEXTEND : SCI_VCHOMEWRAP));
 					return TRUE;
 				}
 				else if (wparam == VK_END) {
-					ManipulateSelections(End, IsShiftPressed());
+					EditSelections(SimpleEdit(IsShiftPressed() ? SCI_LINEENDWRAPEXTEND : SCI_LINEENDWRAP));
 					return TRUE;
 				}
 				else if (wparam == VK_RETURN) {
