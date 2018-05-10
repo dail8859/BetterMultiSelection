@@ -206,7 +206,12 @@ LRESULT CALLBACK KeyboardProc(int ncode, WPARAM wparam, LPARAM lparam) {
 				}
 			}
 			else {
-				if (wparam == VK_LEFT) {
+				if (wparam == VK_ESCAPE) {
+					int caret = editor.GetSelectionNCaret(editor.GetMainSelection());
+					editor.SetSelection(caret, caret);
+					return TRUE;
+				}
+				else if (wparam == VK_LEFT) {
 					EditSelections(SimpleEdit(IsShiftPressed() ? SCI_CHARLEFTEXTEND : SCI_CHARLEFT));
 					return TRUE;
 				}
