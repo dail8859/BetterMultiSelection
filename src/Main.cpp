@@ -231,6 +231,14 @@ LRESULT CALLBACK KeyboardProc(int ncode, WPARAM wparam, LPARAM lparam) {
 					EditSelections(SimpleEdit(SCI_NEWLINE));
 					return TRUE;
 				}
+				else if (wparam == VK_UP) {
+					EditSelections(SimpleEdit(IsShiftPressed() ? SCI_LINEUPEXTEND : SCI_LINEUP));
+					return TRUE;
+				}
+				else if (wparam == VK_DOWN) {
+					EditSelections(SimpleEdit(IsShiftPressed() ? SCI_LINEDOWNEXTEND : SCI_LINEDOWN));
+					return TRUE;
+				}
 			}
 		}
 	}

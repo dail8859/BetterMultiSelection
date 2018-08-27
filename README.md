@@ -1,6 +1,6 @@
 # BetterMultiSelection
 
-[![Build status](https://ci.appveyor.com/api/projects/status/github/dail8859/BetterMultiSelection?branch=master&svg=true)](https://ci.appveyor.com/project/dail8859/BetterMultiSelection/branch/master)
+[![Build status](https://ci.appveyor.com/api/projects/status/0mj7dg030emys2ax?svg=true)](https://ci.appveyor.com/project/dail8859/bettermultiselection)
 
 Notepad++ plugin to provide better cursor movements when using multiple selections.
 
@@ -13,6 +13,8 @@ Make multiple or rectangular selections and move the cursor. Supported cursor mo
 
 - Left
 - Right
+- Up
+- Down
 - Home
 - End
 - Word Left (`Ctrl+Left`)
