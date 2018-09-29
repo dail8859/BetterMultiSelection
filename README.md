@@ -4,7 +4,7 @@
 
 Notepad++ plugin to provide better cursor movements when using multiple selections.
 
-**Note:** It has may not be fully supported on non-US keyboard layouts. This does have some minor quirks (such as the cursor not always blinking correctly) that are a side effect of the implementation.
+**Note:** This may not be fully supported on non-US keyboard layouts. This does have some minor quirks (such as the cursor not always blinking correctly) that are a side effect of the implementation.
 
 ![Demo](/img/Demo.gif)
 
