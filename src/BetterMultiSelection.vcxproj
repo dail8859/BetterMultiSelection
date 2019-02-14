@@ -82,10 +82,10 @@
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <TargetName>$(ProjectName)_64</TargetName>
+    <TargetName>$(ProjectName)</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <TargetName>$(ProjectName)_64</TargetName>
+    <TargetName>$(ProjectName)</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -115,7 +115,10 @@
       <TargetMachine>MachineX86</TargetMachine>
     </Link>
     <PostBuildEvent>
-      <Command>if EXIST "C:\Program Files (x86)\Notepad++\plugins" (copy "$(TargetPath)" "C:\Program Files (x86)\Notepad++\plugins")</Command>
+      <Command>if EXIST "C:\Program Files (x86)\Notepad++\plugins\" (
+  mkdir "C:\Program Files (x86)\Notepad++\plugins\$(TargetName)"
+  copy "$(TargetPath)" "C:\Program Files (x86)\Notepad++\plugins\$(TargetName)"
+)</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -135,7 +138,7 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies>shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <OutputFile>$(OutDir)$(ProjectName)_64.dll</OutputFile>
+      <OutputFile>$(OutDir)$(ProjectName).dll</OutputFile>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
@@ -145,7 +148,10 @@
       <ImportLibrary>$(OutDir)$(ProjectName).lib</ImportLibrary>
     </Link>
     <PostBuildEvent>
-      <Command>if EXIST "C:\Program Files\Notepad++\plugins" (copy "$(TargetPath)" "C:\Program Files\Notepad++\plugins")</Command>
+      <Command>if EXIST "C:\Program Files\Notepad++\plugins\" (
+  mkdir "C:\Program Files\Notepad++\plugins\$(TargetName)"
+  copy "$(TargetPath)" "C:\Program Files\Notepad++\plugins\$(TargetName)"
+)</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -171,7 +177,10 @@
       <TargetMachine>MachineX86</TargetMachine>
     </Link>
     <PostBuildEvent>
-      <Command>if EXIST "C:\Program Files (x86)\Notepad++\plugins" (copy "$(TargetPath)" "C:\Program Files (x86)\Notepad++\plugins")</Command>
+      <Command>if EXIST "C:\Program Files (x86)\Notepad++\plugins\" (
+  mkdir "C:\Program Files (x86)\Notepad++\plugins\$(TargetName)"
+  copy "$(TargetPath)" "C:\Program Files (x86)\Notepad++\plugins\$(TargetName)"
+)</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -187,7 +196,7 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies>shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <OutputFile>$(OutDir)$(ProjectName)_64.dll</OutputFile>
+      <OutputFile>$(OutDir)$(ProjectName).dll</OutputFile>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ProgramDatabaseFile>$(OutDir)$(ProjectName).pdb</ProgramDatabaseFile>
       <SubSystem>Windows</SubSystem>
@@ -196,7 +205,10 @@
       <ImportLibrary>$(OutDir)$(ProjectName).lib</ImportLibrary>
     </Link>
     <PostBuildEvent>
-      <Command>if EXIST "C:\Program Files\Notepad++\plugins" (copy "$(TargetPath)" "C:\Program Files\Notepad++\plugins")</Command>
+      <Command>if EXIST "C:\Program Files\Notepad++\plugins\" (
+  mkdir "C:\Program Files\Notepad++\plugins\$(TargetName)"
+  copy "$(TargetPath)" "C:\Program Files\Notepad++\plugins\$(TargetName)"
+)</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
