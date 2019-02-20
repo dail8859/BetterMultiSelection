@@ -34,6 +34,7 @@ static NppData nppData;
 static HHOOK hook = NULL;
 static bool hasFocus = true;
 static ScintillaGateway editor;
+static UINT clipboard_format = 0;
 
 static void enableBetterMultiSelection();
 static void showAbout();
@@ -184,6 +185,110 @@ static void EditSelections(T edit) {
 	SetSelections(selections);
 }
 
+class GlobalMemory {
+	HGLOBAL hand{};
+public:
+	void *ptr{};
+	GlobalMemory() {
+	}
+	explicit GlobalMemory(HGLOBAL hand_) : hand(hand_) {
+		if (hand) {
+			ptr = ::GlobalLock(hand);
+		}
+	}
+	// Deleted so GlobalMemory objects can not be copied.
+	GlobalMemory(const GlobalMemory &) = delete;
+	GlobalMemory(GlobalMemory &&) = delete;
+	GlobalMemory &operator=(const GlobalMemory &) = delete;
+	GlobalMemory &operator=(GlobalMemory &&) = delete;
+	~GlobalMemory() {
+	}
+	void Allocate(size_t bytes) {
+		hand = ::GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, bytes);
+		if (hand) {
+			ptr = ::GlobalLock(hand);
+		}
+	}
+	HGLOBAL Unlock() {
+		HGLOBAL handCopy = hand;
+		::GlobalUnlock(hand);
+		ptr = 0;
+		hand = 0;
+		return handCopy;
+	}
+	void SetClip(UINT uFormat) {
+		::SetClipboardData(uFormat, Unlock());
+	}
+	operator bool() const {
+		return ptr != nullptr;
+	}
+	SIZE_T Size() {
+		return ::GlobalSize(hand);
+	}
+};
+
+std::string TransformLineEnds(const char *s, int eolModeWanted) {
+	std::string dest;
+	const size_t len = strlen(s);
+	for (size_t i = 0; s[i]; i++) {
+		if (s[i] == '\n' || s[i] == '\r') {
+			if (eolModeWanted == SC_EOL_CR) {
+				dest.push_back('\r');
+			}
+			else if (eolModeWanted == SC_EOL_LF) {
+				dest.push_back('\n');
+			}
+			else { // eolModeWanted == SC_EOL_CRLF
+				dest.push_back('\r');
+				dest.push_back('\n');
+			}
+			if ((s[i] == '\r') && (i + 1 < len) && (s[i + 1] == '\n')) {
+				i++;
+			}
+		}
+		else {
+			dest.push_back(s[i]);
+		}
+	}
+	return dest;
+}
+
+const char *StringFromEOLMode(int eolMode) {
+	if (eolMode == SC_EOL_CRLF) {
+		return "\r\n";
+	}
+	else if (eolMode == SC_EOL_CR) {
+		return "\r";
+	}
+	else {
+		return "\n";
+	}
+}
+
+template <typename T, typename U>
+static std::string join(const std::vector<T> &v, const U &delim) {
+	std::stringstream ss;
+	for (size_t i = 0; i < v.size(); ++i) {
+		if (i != 0) ss << delim;
+		ss << v[i];
+	}
+	return ss.str();
+}
+
+template <typename T>
+static std::vector<std::basic_string<T>> split(std::basic_string<T> const &str, const std::basic_string<T> &delim) {
+	size_t start;
+	size_t end = 0;
+	std::vector<std::basic_string<T>> out;
+
+	while ((start = str.find_first_not_of(delim, end)) != std::basic_string<T>::npos) {
+		end = str.find(delim, start);
+		out.push_back(str.substr(start, end - start));
+	}
+
+	return out;
+}
+
 LRESULT CALLBACK KeyboardProc(int ncode, WPARAM wparam, LPARAM lparam) {
 	if (ncode == HC_ACTION && (HIWORD(lparam) & KF_UP) == 0 && !IsAltPressed()) {
 		if (hasFocus && editor.GetSelections() > 1) {
@@ -203,6 +308,35 @@ LRESULT CALLBACK KeyboardProc(int ncode, WPARAM wparam, LPARAM lparam) {
 				else if (wparam == VK_DELETE) {
 					EditSelections(SimpleEdit(SCI_DELWORDRIGHT));
 					return TRUE;
+				}
+				else if (wparam == 0x56) {
+					if (IsClipboardFormatAvailable(clipboard_format) && OpenClipboard(GetCurrentScintilla())) {
+						GlobalMemory clipboard_data(::GetClipboardData(CF_UNICODETEXT));
+
+						if (clipboard_data) {
+							std::wstring ws(static_cast<const wchar_t *>(clipboard_data.ptr));
+							std::string st = TransformLineEnds(std::string(ws.cbegin(), ws.cend()).c_str(), editor.GetEOLMode());
+
+							auto lines = split(st, std::string(StringFromEOLMode(editor.GetEOLMode())));
+							if (lines.size() == editor.GetSelections()) {
+								EditSelections([&lines](Selection &selection) {
+									editor.SetTargetRange(selection.caret, selection.anchor);
+									editor.ReplaceTarget(lines[0]);
+
+									selection.caret = editor.GetTargetStart();
+									selection.anchor = editor.GetTargetEnd();
+
+									lines.erase(lines.cbegin());
+								});
+
+								clipboard_data.Unlock();
+
+								CloseClipboard();
+								return TRUE;
+							}
+						}
+						CloseClipboard();
+					}
 				}
 			}
 			else {
@@ -249,6 +383,7 @@ LRESULT CALLBACK KeyboardProc(int ncode, WPARAM wparam, LPARAM lparam) {
 BOOL APIENTRY DllMain(HANDLE hModule, DWORD  reasonForCall, LPVOID lpReserved) {
 	switch (reasonForCall) {
 		case DLL_PROCESS_ATTACH:
+			clipboard_format = RegisterClipboardFormat(L"MSDEVColumnSelect"); 
 			_hModule = hModule;
 			break;
 		case DLL_PROCESS_DETACH:
