@@ -23,6 +23,7 @@
 
 #include <algorithm>
 #include <vector>
+#include <sstream>
 
 #define IsShiftPressed()   ((GetKeyState(VK_SHIFT) & KF_UP) != 0)
 #define IsControlPressed() ((GetKeyState(VK_CONTROL) & KF_UP) != 0)
@@ -34,7 +35,9 @@ static NppData nppData;
 static HHOOK hook = NULL;
 static bool hasFocus = true;
 static ScintillaGateway editor;
-static UINT clipboard_format = 0;
+
+static UINT cfMultiSelect = 0;
+static UINT cfColumnSelect = 0;
 
 static void enableBetterMultiSelection();
 static void showAbout();
@@ -289,6 +292,22 @@ static std::vector<std::basic_string<T>> split(std::basic_string<T> const &str, 
 	return out;
 }
 
+bool all_selections_have_text(ScintillaGateway &editor) {
+	const int selections = editor.GetSelections();
+	bool has_selections = true;
+
+	for (int i = 0; i < editor.GetSelections(); ++i) {
+		int start = editor.GetSelectionNStart(i);
+		int end = editor.GetSelectionNEnd(i);
+
+		if (start == end) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
 LRESULT CALLBACK KeyboardProc(int ncode, WPARAM wparam, LPARAM lparam) {
 	if (ncode == HC_ACTION && (HIWORD(lparam) & KF_UP) == 0 && !IsAltPressed()) {
 		if (hasFocus && editor.GetSelections() > 1) {
@@ -309,9 +328,38 @@ LRESULT CALLBACK KeyboardProc(int ncode, WPARAM wparam, LPARAM lparam) {
 					EditSelections(SimpleEdit(SCI_DELWORDRIGHT));
 					return TRUE;
 				}
+				else if (wparam == 0x43) {
+					if (all_selections_have_text(editor) && editor.GetCodePage() == SC_CP_UTF8 && OpenClipboard(GetCurrentScintilla())) {
+						EmptyClipboard();
+
+						std::vector<std::string> selected_text;
+						for (int i = 0; i < editor.GetSelections(); ++i) {
+							int start = editor.GetSelectionNStart(i);
+							int end = editor.GetSelectionNEnd(i);
+
+							editor.SetTargetRange(start, end);
+							selected_text.push_back(editor.GetTargetText());
+						}
+
+						auto text = join(selected_text, std::string(StringFromEOLMode(editor.GetEOLMode())));
+						text += StringFromEOLMode(editor.GetEOLMode());
+
+						std::wstring s(text.begin(), text.end());
+
+						GlobalMemory uniText;
+						uniText.Allocate(s.size() * sizeof(wchar_t));
+						memcpy(uniText.ptr, s.c_str(), s.size() * sizeof(wchar_t));
+						uniText.SetClip(CF_UNICODETEXT);
+						SetClipboardData(cfMultiSelect, 0);
+
+						CloseClipboard();
+						return TRUE;
+					}
+				}
 				else if (wparam == 0x56) {
-					if (IsClipboardFormatAvailable(clipboard_format) && OpenClipboard(GetCurrentScintilla())) {
-						GlobalMemory clipboard_data(::GetClipboardData(CF_UNICODETEXT));
+					if ((IsClipboardFormatAvailable(cfColumnSelect) || IsClipboardFormatAvailable(cfMultiSelect))
+						&& OpenClipboard(GetCurrentScintilla())) {
+						GlobalMemory clipboard_data(GetClipboardData(CF_UNICODETEXT));
 
 						if (clipboard_data) {
 							std::wstring ws(static_cast<const wchar_t *>(clipboard_data.ptr));
@@ -323,9 +371,10 @@ LRESULT CALLBACK KeyboardProc(int ncode, WPARAM wparam, LPARAM lparam) {
 									editor.SetTargetRange(selection.caret, selection.anchor);
 									editor.ReplaceTarget(lines[0]);
 
-									selection.caret = editor.GetTargetStart();
+									selection.caret = editor.GetTargetEnd();
 									selection.anchor = editor.GetTargetEnd();
 
+									// pop front
 									lines.erase(lines.cbegin());
 								});
 
@@ -376,6 +425,7 @@ LRESULT CALLBACK KeyboardProc(int ncode, WPARAM wparam, LPARAM lparam) {
 			}
 		}
 	}
+
 	return CallNextHookEx(hook, ncode, wparam, lparam); // pass control to next hook in the hook chain
 }
 
@@ -383,7 +433,8 @@ LRESULT CALLBACK KeyboardProc(int ncode, WPARAM wparam, LPARAM lparam) {
 BOOL APIENTRY DllMain(HANDLE hModule, DWORD  reasonForCall, LPVOID lpReserved) {
 	switch (reasonForCall) {
 		case DLL_PROCESS_ATTACH:
-			clipboard_format = RegisterClipboardFormat(L"MSDEVColumnSelect"); 
+			cfColumnSelect = RegisterClipboardFormat(L"MSDEVColumnSelect");
+			cfMultiSelect = RegisterClipboardFormat(L"BMSMultiSelect");
 			_hModule = hModule;
 			break;
 		case DLL_PROCESS_DETACH:
