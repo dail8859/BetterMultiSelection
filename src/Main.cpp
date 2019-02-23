@@ -21,6 +21,9 @@
 #include "PluginInterface.h"
 #include "ScintillaGateway.h"
 
+#include "UniConversion.h"
+#include "GlobalMemory.h"
+
 #include <algorithm>
 #include <vector>
 #include <sstream>
@@ -188,48 +191,6 @@ static void EditSelections(T edit) {
 	SetSelections(selections);
 }
 
-class GlobalMemory {
-	HGLOBAL hand{};
-public:
-	void *ptr{};
-	GlobalMemory() {
-	}
-	explicit GlobalMemory(HGLOBAL hand_) : hand(hand_) {
-		if (hand) {
-			ptr = ::GlobalLock(hand);
-		}
-	}
-	// Deleted so GlobalMemory objects can not be copied.
-	GlobalMemory(const GlobalMemory &) = delete;
-	GlobalMemory(GlobalMemory &&) = delete;
-	GlobalMemory &operator=(const GlobalMemory &) = delete;
-	GlobalMemory &operator=(GlobalMemory &&) = delete;
-	~GlobalMemory() {
-	}
-	void Allocate(size_t bytes) {
-		hand = ::GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, bytes);
-		if (hand) {
-			ptr = ::GlobalLock(hand);
-		}
-	}
-	HGLOBAL Unlock() {
-		HGLOBAL handCopy = hand;
-		::GlobalUnlock(hand);
-		ptr = 0;
-		hand = 0;
-		return handCopy;
-	}
-	void SetClip(UINT uFormat) {
-		::SetClipboardData(uFormat, Unlock());
-	}
-	operator bool() const {
-		return ptr != nullptr;
-	}
-	SIZE_T Size() {
-		return ::GlobalSize(hand);
-	}
-};
-
 std::string TransformLineEnds(const char *s, int eolModeWanted) {
 	std::string dest;
 	const size_t len = strlen(s);
@@ -292,7 +253,7 @@ static std::vector<std::basic_string<T>> split(std::basic_string<T> const &str, 
 	return out;
 }
 
-bool all_selections_have_text(ScintillaGateway &editor) {
+bool AllSelectionsHaveText(ScintillaGateway &editor) {
 	const int selections = editor.GetSelections();
 	bool has_selections = true;
 
@@ -306,6 +267,238 @@ bool all_selections_have_text(ScintillaGateway &editor) {
 	}
 
 	return true;
+}
+
+// ============================================================================
+
+// OpenClipboard may fail if another application has opened the clipboard.
+// Try up to 8 times, with an initial delay of 1 ms and an exponential back off
+// for a maximum total delay of 127 ms (1+2+4+8+16+32+64).
+bool OpenClipboardRetry(HWND hwnd) {
+	for (int attempt = 0; attempt < 8; attempt++) {
+		if (attempt > 0) {
+			Sleep(1 << (attempt - 1));
+		}
+		if (OpenClipboard(hwnd)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+UINT CodePageFromCharSet(DWORD characterSet, UINT documentCodePage) {
+	if (documentCodePage == SC_CP_UTF8) {
+		return SC_CP_UTF8;
+	}
+	switch (characterSet) {
+	case SC_CHARSET_ANSI: return 1252;
+	case SC_CHARSET_DEFAULT: return documentCodePage ? documentCodePage : 1252;
+	case SC_CHARSET_BALTIC: return 1257;
+	case SC_CHARSET_CHINESEBIG5: return 950;
+	case SC_CHARSET_EASTEUROPE: return 1250;
+	case SC_CHARSET_GB2312: return 936;
+	case SC_CHARSET_GREEK: return 1253;
+	case SC_CHARSET_HANGUL: return 949;
+	case SC_CHARSET_MAC: return 10000;
+	case SC_CHARSET_OEM: return 437;
+	case SC_CHARSET_RUSSIAN: return 1251;
+	case SC_CHARSET_SHIFTJIS: return 932;
+	case SC_CHARSET_TURKISH: return 1254;
+	case SC_CHARSET_JOHAB: return 1361;
+	case SC_CHARSET_HEBREW: return 1255;
+	case SC_CHARSET_ARABIC: return 1256;
+	case SC_CHARSET_VIETNAMESE: return 1258;
+	case SC_CHARSET_THAI: return 874;
+	case SC_CHARSET_8859_15: return 28605;
+		// Not supported
+	case SC_CHARSET_CYRILLIC: return documentCodePage;
+	case SC_CHARSET_SYMBOL: return documentCodePage;
+	}
+	return documentCodePage;
+}
+
+
+// This is a modificated version of ScintillaWin::CopyToClipboard()
+// Multilpe selects can be treated like rectangular and concat'ed together by newlines
+bool CopyToClipboard(ScintillaGateway &editor) {
+	if (!OpenClipboardRetry(editor.GetScintillaInstance())) {
+		return false;
+	}
+
+	EmptyClipboard();
+
+	GlobalMemory uniText;
+
+	std::string selectedText;
+	for (int i = 0; i < editor.GetSelections(); ++i) {
+		int start = editor.GetSelectionNStart(i);
+		int end = editor.GetSelectionNEnd(i);
+
+		editor.SetTargetRange(start, end);
+
+		// TODO: check if newline in range and if so abort?
+		// Newlines in the selection will mess up pasting since it
+		// will look like an extra row
+
+		selectedText.append(editor.GetTargetText());
+		selectedText.append(StringFromEOLMode(editor.GetEOLMode()));
+	}
+
+	// Default Scintilla behaviour in Unicode mode
+	if (editor.GetCodePage() == SC_CP_UTF8) {
+		const size_t uchars = UTF16Length(selectedText.c_str(), selectedText.size());
+		uniText.Allocate(2 * uchars);
+		if (uniText) {
+			UTF16FromUTF8(selectedText.c_str(), selectedText.size(), static_cast<wchar_t *>(uniText.ptr), uchars);
+		}
+	}
+	else {
+		// Not Unicode mode
+		// Convert to Unicode using the current Scintilla code page
+		const UINT cpSrc = CodePageFromCharSet(editor.StyleGetCharacterSet(STYLE_DEFAULT), editor.GetCodePage());
+		const int uLen = MultiByteToWideChar(cpSrc, 0, selectedText.c_str(), static_cast<int>(selectedText.size()), 0, 0);
+		uniText.Allocate(2 * uLen);
+		if (uniText) {
+			MultiByteToWideChar(cpSrc, 0, selectedText.c_str(), static_cast<int>(selectedText.size()), static_cast<wchar_t *>(uniText.ptr), uLen);
+		}
+	}
+
+	if (uniText) {
+		uniText.SetClip(CF_UNICODETEXT);
+	}
+	else {
+		// There was a failure - try to copy at least ANSI text
+		GlobalMemory ansiText;
+		ansiText.Allocate(selectedText.size());
+		if (ansiText) {
+			memcpy(ansiText.ptr, selectedText.c_str(), selectedText.size());
+			ansiText.SetClip(CF_TEXT);
+		}
+	}
+
+	SetClipboardData(cfColumnSelect, 0);
+	SetClipboardData(cfMultiSelect, 0);
+
+	CloseClipboard();
+
+	return true;
+}
+
+UINT CodePageOfDocument(ScintillaGateway &editor) {
+	return CodePageFromCharSet(editor.StyleGetCharacterSet(STYLE_DEFAULT), editor.GetCodePage());
+}
+
+bool InsertMultiCursorPaste(ScintillaGateway &editor, const char *text) {
+	std::string st;
+
+	if (editor.GetPasteConvertEndings()) {
+		st = TransformLineEnds(text, editor.GetEOLMode());
+	}
+	else {
+		st = text;
+	}
+
+	auto lines = split(st, std::string(StringFromEOLMode(editor.GetEOLMode())));
+	if (lines.size() == editor.GetSelections()) {
+		EditSelections([&lines, &editor](Selection &selection) {
+			editor.SetTargetRange(selection.caret, selection.anchor);
+			editor.ReplaceTarget(lines[0]);
+
+			selection.caret = editor.GetTargetEnd();
+			selection.anchor = editor.GetTargetEnd();
+
+			// pop front
+			lines.erase(lines.cbegin());
+		});
+
+		return true;
+	}
+
+	return false;
+}
+
+bool Paste(ScintillaGateway &editor) {
+	if (!IsClipboardFormatAvailable(cfColumnSelect) && !IsClipboardFormatAvailable(cfMultiSelect))
+		return false;
+
+	if (!OpenClipboardRetry(editor.GetScintillaInstance())) {
+		return false;
+	}
+
+	// Always use CF_UNICODETEXT if available
+	GlobalMemory memUSelection(::GetClipboardData(CF_UNICODETEXT));
+	if (memUSelection) {
+		const wchar_t *uptr = static_cast<const wchar_t *>(memUSelection.ptr);
+		if (uptr) {
+			size_t len;
+			std::vector<char> putf;
+			// Default Scintilla behaviour in Unicode mode
+			if (editor.GetCodePage() == SC_CP_UTF8) {
+				const size_t bytes = memUSelection.Size();
+				len = UTF8Length(uptr, bytes / 2);
+				putf.resize(len + 1);
+				UTF8FromUTF16(uptr, bytes / 2, &putf[0], len);
+			}
+			else {
+				// CF_UNICODETEXT available, but not in Unicode mode
+				// Convert from Unicode to current Scintilla code page
+				const UINT cpDest = CodePageOfDocument(editor);
+				len = WideCharToMultiByte(cpDest, 0, uptr, -1, NULL, 0, NULL, NULL) - 1; // subtract 0 terminator
+				putf.resize(len + 1);
+				WideCharToMultiByte(cpDest, 0, uptr, -1, &putf[0], static_cast<int>(len) + 1, NULL, NULL);
+			}
+
+			if (InsertMultiCursorPaste(editor, &putf[0])) {
+				memUSelection.Unlock();
+				CloseClipboard();
+				return true;
+			}
+		}
+		
+	}
+	else {
+		// CF_UNICODETEXT not available, paste ANSI text
+		GlobalMemory memSelection(::GetClipboardData(CF_TEXT));
+		if (memSelection) {
+			const char *ptr = static_cast<const char *>(memSelection.ptr);
+			if (ptr) {
+				const size_t bytes = memSelection.Size();
+				size_t len = bytes;
+				for (size_t i = 0; i < bytes; i++) {
+					if ((len == bytes) && (0 == ptr[i]))
+						len = i;
+				}
+
+				// In Unicode mode, convert clipboard text to UTF-8
+				if (editor.GetCodePage() == SC_CP_UTF8) {
+					std::vector<wchar_t> uptr(len + 1);
+
+					const int ilen = static_cast<int>(len);
+					const size_t ulen = ::MultiByteToWideChar(CP_ACP, 0, ptr, ilen, &uptr[0], ilen + 1);
+
+					const size_t mlen = UTF8Length(&uptr[0], ulen);
+					std::vector<char> putf(mlen + 1);
+					UTF8FromUTF16(&uptr[0], ulen, &putf[0], mlen);
+
+					if (InsertMultiCursorPaste(editor, &putf[0])) {
+						memSelection.Unlock();
+						CloseClipboard();
+						return true;
+					}
+				}
+				else {
+					if (InsertMultiCursorPaste(editor, ptr)) {
+						memSelection.Unlock();
+						CloseClipboard();
+						return true;
+					}
+				}
+			}
+		}
+	}
+
+	CloseClipboard();
+	return false;
 }
 
 LRESULT CALLBACK KeyboardProc(int ncode, WPARAM wparam, LPARAM lparam) {
@@ -328,63 +521,17 @@ LRESULT CALLBACK KeyboardProc(int ncode, WPARAM wparam, LPARAM lparam) {
 					EditSelections(SimpleEdit(SCI_DELWORDRIGHT));
 					return TRUE;
 				}
-				else if (wparam == 0x43) {
-					if (all_selections_have_text(editor) && editor.GetCodePage() == SC_CP_UTF8 && OpenClipboard(GetCurrentScintilla())) {
-						EmptyClipboard();
-
-						std::vector<std::string> selected_text;
-						for (int i = 0; i < editor.GetSelections(); ++i) {
-							int start = editor.GetSelectionNStart(i);
-							int end = editor.GetSelectionNEnd(i);
-
-							editor.SetTargetRange(start, end);
-							selected_text.push_back(editor.GetTargetText());
+				else if (wparam == 'X' || wparam == 'C') {
+					if (CopyToClipboard(editor)) {
+						if (wparam == 'X') {
+							EditSelections(SimpleEdit(SCI_DELETEBACK));
 						}
-
-						auto text = join(selected_text, std::string(StringFromEOLMode(editor.GetEOLMode())));
-						text += StringFromEOLMode(editor.GetEOLMode());
-
-						std::wstring s(text.begin(), text.end());
-
-						GlobalMemory uniText;
-						uniText.Allocate(s.size() * sizeof(wchar_t));
-						memcpy(uniText.ptr, s.c_str(), s.size() * sizeof(wchar_t));
-						uniText.SetClip(CF_UNICODETEXT);
-						SetClipboardData(cfMultiSelect, 0);
-
-						CloseClipboard();
 						return TRUE;
 					}
 				}
-				else if (wparam == 0x56) {
-					if ((IsClipboardFormatAvailable(cfColumnSelect) || IsClipboardFormatAvailable(cfMultiSelect))
-						&& OpenClipboard(GetCurrentScintilla())) {
-						GlobalMemory clipboard_data(GetClipboardData(CF_UNICODETEXT));
-
-						if (clipboard_data) {
-							std::wstring ws(static_cast<const wchar_t *>(clipboard_data.ptr));
-							std::string st = TransformLineEnds(std::string(ws.cbegin(), ws.cend()).c_str(), editor.GetEOLMode());
-
-							auto lines = split(st, std::string(StringFromEOLMode(editor.GetEOLMode())));
-							if (lines.size() == editor.GetSelections()) {
-								EditSelections([&lines](Selection &selection) {
-									editor.SetTargetRange(selection.caret, selection.anchor);
-									editor.ReplaceTarget(lines[0]);
-
-									selection.caret = editor.GetTargetEnd();
-									selection.anchor = editor.GetTargetEnd();
-
-									// pop front
-									lines.erase(lines.cbegin());
-								});
-
-								clipboard_data.Unlock();
-
-								CloseClipboard();
-								return TRUE;
-							}
-						}
-						CloseClipboard();
+				else if (wparam == 'V') {
+					if (Paste(editor)) {
+						return TRUE;
 					}
 				}
 			}

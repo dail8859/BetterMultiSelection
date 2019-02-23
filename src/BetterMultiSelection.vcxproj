@@ -215,16 +215,19 @@
     <ClCompile Include="Dialogs\AboutDialog.cpp" />
     <ClCompile Include="Dialogs\Hyperlinks.cpp" />
     <ClCompile Include="Main.cpp" />
+    <ClCompile Include="UniConversion.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Dialogs\AboutDialog.h" />
     <ClInclude Include="Dialogs\Hyperlinks.h" />
     <ClInclude Include="Dialogs\resource.h" />
+    <ClInclude Include="GlobalMemory.h" />
     <ClInclude Include="Npp\menuCmdID.h" />
     <ClInclude Include="Npp\Notepad_plus_msgs.h" />
     <ClInclude Include="Npp\PluginInterface.h" />
     <ClInclude Include="Npp\Scintilla.h" />
     <ClInclude Include="ScintillaGateway.h" />
+    <ClInclude Include="UniConversion.h" />
     <ClInclude Include="Version.h" />
   </ItemGroup>
   <ItemGroup>
