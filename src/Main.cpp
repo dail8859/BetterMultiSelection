@@ -401,7 +401,11 @@ bool InsertMultiCursorPaste(ScintillaGateway &editor, const char *text) {
 	auto lines = split(st, std::string(StringFromEOLMode(editor.GetEOLMode())));
 	if (lines.size() == editor.GetSelections()) {
 		EditSelections([&lines, &editor](Selection &selection) {
-			editor.SetTargetRange(selection.caret, selection.anchor);
+			if (selection.caret < selection.anchor)
+				editor.SetTargetRange(selection.caret, selection.anchor);
+			else
+				editor.SetTargetRange(selection.anchor, selection.caret);
+
 			editor.ReplaceTarget(lines[0]);
 
 			selection.caret = editor.GetTargetEnd();
