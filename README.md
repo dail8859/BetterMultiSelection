@@ -9,6 +9,8 @@ Notepad++ plugin to provide better cursor movements when using multiple selectio
 ![Demo](/img/Demo.gif)
 
 ## Usage
+Ensure you have Multi-Editing turned *on* in Notepad++'s preferences. `Settings > Preferences > Editing > Multi-Editing Settings`
+
 Make multiple or rectangular selections and move the cursor. Supported cursor movements are:
 
 - Left
