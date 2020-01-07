@@ -226,7 +226,7 @@
     <ClInclude Include="Npp\Notepad_plus_msgs.h" />
     <ClInclude Include="Npp\PluginInterface.h" />
     <ClInclude Include="Npp\Scintilla.h" />
-    <ClInclude Include="ScintillaGateway.h" />
+    <ClInclude Include="ScintillaEditor.h" />
     <ClInclude Include="UniConversion.h" />
     <ClInclude Include="Version.h" />
   </ItemGroup>

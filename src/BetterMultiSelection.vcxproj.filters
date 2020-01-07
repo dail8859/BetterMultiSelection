@@ -53,13 +53,13 @@
     <ClInclude Include="Npp\Scintilla.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ScintillaGateway.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="UniConversion.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="GlobalMemory.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ScintillaEditor.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

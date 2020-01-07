@@ -19,7 +19,7 @@
 #include "AboutDialog.h"
 #include "resource.h"
 #include "PluginInterface.h"
-#include "ScintillaGateway.h"
+#include "ScintillaEditor.h"
 
 #include "UniConversion.h"
 #include "GlobalMemory.h"
@@ -37,7 +37,7 @@ static HANDLE _hModule;
 static NppData nppData;
 static HHOOK hook = NULL;
 static bool hasFocus = true;
-static ScintillaGateway editor;
+static ScintillaEditor editor;
 
 static UINT cfMultiSelect = 0;
 static UINT cfColumnSelect = 0;
@@ -254,7 +254,7 @@ static std::vector<std::basic_string<T>> split(std::basic_string<T> const &str, 
 	return out;
 }
 
-bool AllSelectionsHaveText(ScintillaGateway &editor) {
+bool AllSelectionsHaveText(ScintillaEditor &editor) {
 	const int selections = editor.GetSelections();
 	bool has_selections = true;
 
@@ -321,7 +321,7 @@ UINT CodePageFromCharSet(DWORD characterSet, UINT documentCodePage) {
 
 // This is a modificated version of ScintillaWin::CopyToClipboard()
 // Multilpe selects can be treated like rectangular and concat'ed together by newlines
-bool CopyToClipboard(ScintillaGateway &editor) {
+bool CopyToClipboard(ScintillaEditor &editor) {
 	if (!OpenClipboardRetry(editor.GetScintillaInstance())) {
 		return false;
 	}
@@ -385,11 +385,11 @@ bool CopyToClipboard(ScintillaGateway &editor) {
 	return true;
 }
 
-UINT CodePageOfDocument(ScintillaGateway &editor) {
+UINT CodePageOfDocument(ScintillaEditor &editor) {
 	return CodePageFromCharSet(editor.StyleGetCharacterSet(STYLE_DEFAULT), editor.GetCodePage());
 }
 
-bool InsertMultiCursorPaste(ScintillaGateway &editor, const char *text) {
+bool InsertMultiCursorPaste(ScintillaEditor &editor, const char *text) {
 	std::string st;
 
 	if (editor.GetPasteConvertEndings()) {
@@ -422,7 +422,7 @@ bool InsertMultiCursorPaste(ScintillaGateway &editor, const char *text) {
 	return false;
 }
 
-bool Paste(ScintillaGateway &editor) {
+bool Paste(ScintillaEditor &editor) {
 	if (!IsClipboardFormatAvailable(cfColumnSelect) && !IsClipboardFormatAvailable(cfMultiSelect))
 		return false;
 
