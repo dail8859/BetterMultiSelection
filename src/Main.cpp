@@ -86,6 +86,7 @@ static void enableBetterMultiSelection() {
 	else {
 		hook = SetWindowsHookEx(WH_KEYBOARD, KeyboardProc, (HINSTANCE)_hModule, ::GetCurrentThreadId());
 		SendMessage(nppData._nppHandle, NPPM_SETMENUITEMCHECK, funcItem[0]._cmdID, 1);
+		editor.AutoCSetMulti(SC_MULTIAUTOC_EACH);
 	}
 }
 
@@ -562,8 +563,11 @@ LRESULT CALLBACK KeyboardProc(int ncode, WPARAM wparam, LPARAM lparam) {
 					return TRUE;
 				}
 				else if (wparam == VK_RETURN) {
-					EditSelections(SimpleEdit(SCI_NEWLINE));
-					return TRUE;
+					if (!editor.AutoCActive()) {
+						EditSelections(SimpleEdit(SCI_NEWLINE));
+						return TRUE;
+					}
+					// else just let Scintilla handle the insertion of autocompletion
 				}
 				else if (wparam == VK_UP) {
 					EditSelections(SimpleEdit(IsShiftPressed() ? SCI_LINEUPEXTEND : SCI_LINEUP));
@@ -616,6 +620,10 @@ extern "C" __declspec(dllexport) FuncItem *getFuncsArray(int *nbF) {
 
 extern "C" __declspec(dllexport) void beNotified(SCNotification *notifyCode) {
 	switch (notifyCode->nmhdr.code) {
+		case SCN_CHARADDED:
+			//if (editor.GetSelections() > 1)
+
+			break;
 		case SCN_FOCUSIN:
 			hasFocus = true;
 			break;
@@ -625,8 +633,7 @@ extern "C" __declspec(dllexport) void beNotified(SCNotification *notifyCode) {
 		case NPPN_READY: {
 			bool isEnabled = GetPrivateProfileInt(TEXT("BetterMultiSelection"), TEXT("enabled"), 1, GetIniFilePath()) == 1;
 			if (isEnabled) {
-				hook = SetWindowsHookEx(WH_KEYBOARD, KeyboardProc, (HINSTANCE)_hModule, ::GetCurrentThreadId());
-				SendMessage(nppData._nppHandle, NPPM_SETMENUITEMCHECK, funcItem[0]._cmdID, 1);
+				enableBetterMultiSelection();
 			}
 			break;
 		}
@@ -637,6 +644,7 @@ extern "C" __declspec(dllexport) void beNotified(SCNotification *notifyCode) {
 			break;
 		case NPPN_BUFFERACTIVATED:
 			editor.SetScintillaInstance(GetCurrentScintilla());
+			editor.AutoCSetMulti(SC_MULTIAUTOC_EACH);
 			break;
 	}
 	return;
