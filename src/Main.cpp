@@ -570,12 +570,18 @@ LRESULT CALLBACK KeyboardProc(int ncode, WPARAM wparam, LPARAM lparam) {
 					// else just let Scintilla handle the insertion of autocompletion
 				}
 				else if (wparam == VK_UP) {
-					EditSelections(SimpleEdit(IsShiftPressed() ? SCI_LINEUPEXTEND : SCI_LINEUP));
-					return TRUE;
+					if (!editor.AutoCActive()) {
+						EditSelections(SimpleEdit(IsShiftPressed() ? SCI_LINEUPEXTEND : SCI_LINEUP));
+						return TRUE;
+					}
+					// else just let Scintilla handle the navigation of autocompletion
 				}
 				else if (wparam == VK_DOWN) {
-					EditSelections(SimpleEdit(IsShiftPressed() ? SCI_LINEDOWNEXTEND : SCI_LINEDOWN));
-					return TRUE;
+					if (!editor.AutoCActive()) {
+						EditSelections(SimpleEdit(IsShiftPressed() ? SCI_LINEDOWNEXTEND : SCI_LINEDOWN));
+						return TRUE;
+					}
+					// else just let Scintilla handle the navigation of autocompletion
 				}
 			}
 		}
