@@ -331,11 +331,9 @@ bool CopyToClipboard(ScintillaEditor &editor) {
 	GlobalMemory uniText;
 
 	std::string selectedText;
-	for (int i = 0; i < editor.GetSelections(); ++i) {
-		int start = editor.GetSelectionNStart(i);
-		int end = editor.GetSelectionNEnd(i);
 
-		editor.SetTargetRange(start, end);
+	EditSelections([&selectedText, &editor](Selection& selection) {
+		editor.SetTargetRange(selection.start(), selection.end());
 
 		// TODO: check if newline in range and if so abort?
 		// Newlines in the selection will mess up pasting since it
@@ -343,7 +341,7 @@ bool CopyToClipboard(ScintillaEditor &editor) {
 
 		selectedText.append(editor.GetTargetText());
 		selectedText.append(StringFromEOLMode(editor.GetEOLMode()));
-	}
+	});
 
 	// Default Scintilla behaviour in Unicode mode
 	if (editor.GetCodePage() == SC_CP_UTF8) {
