@@ -516,25 +516,27 @@ LRESULT CALLBACK KeyboardProc(int ncode, WPARAM wparam, LPARAM lparam) {
 					EditSelections(SimpleEdit(IsShiftPressed() ? SCI_WORDRIGHTENDEXTEND : SCI_WORDRIGHT));
 					return TRUE;
 				}
-				else if (wparam == VK_BACK) {
-					EditSelections(SimpleEdit(SCI_DELWORDLEFT));
-					return TRUE;
-				}
-				else if (wparam == VK_DELETE) {
-					EditSelections(SimpleEdit(SCI_DELWORDRIGHT));
-					return TRUE;
-				}
-				else if (wparam == 'X' || wparam == 'C') {
-					if (CopyToClipboard(editor)) {
-						if (wparam == 'X') {
-							EditSelections(SimpleEdit(SCI_DELETEBACK));
-						}
+				else if (!IsShiftPressed()) { // Handle CTRL+{} only, allow CTRL+SHIFT+{} to be used elsewhere
+					if (wparam == VK_BACK) {
+						EditSelections(SimpleEdit(SCI_DELWORDLEFT));
 						return TRUE;
 					}
-				}
-				else if (wparam == 'V') {
-					if (Paste(editor)) {
+					else if (wparam == VK_DELETE) {
+						EditSelections(SimpleEdit(SCI_DELWORDRIGHT));
 						return TRUE;
+					}
+					else if (wparam == 'X' || wparam == 'C') {
+						if (CopyToClipboard(editor)) {
+							if (wparam == 'X') {
+								EditSelections(SimpleEdit(SCI_DELETEBACK));
+							}
+							return TRUE;
+						}
+					}
+					else if (wparam == 'V') {
+						if (Paste(editor)) {
+							return TRUE;
+						}
 					}
 				}
 			}
