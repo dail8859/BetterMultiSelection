@@ -560,6 +560,14 @@ LRESULT CALLBACK KeyboardProc(int ncode, WPARAM wparam, LPARAM lparam) {
 					EditSelections(SimpleEdit(IsShiftPressed() ? SCI_LINEENDWRAPEXTEND : SCI_LINEENDWRAP));
 					return TRUE;
 				}
+				else if (wparam == VK_BACK) {
+					EditSelections(SimpleEdit(SCI_DELETEBACK));
+					return TRUE;
+				}
+				else if (wparam == VK_DELETE) {
+					EditSelections(SimpleEdit(SCI_CLEAR));
+					return TRUE;
+				}
 				else if (wparam == VK_RETURN) {
 					if (!editor.AutoCActive()) {
 						EditSelections(SimpleEdit(SCI_NEWLINE));
