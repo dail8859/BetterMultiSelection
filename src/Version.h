@@ -16,8 +16,8 @@
 // along with this program; if not, write to the Free Software
 // Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
-#define VERSION_NUM				1,4,0,0
-#define VERSION_LINEAR			1400
-#define VERSION_LINEAR_TEXT		TEXT("1400")
-#define VERSION_TEXT			TEXT("1.4")
+#define VERSION_NUM				1,5,0,0
+#define VERSION_LINEAR			1500
+#define VERSION_LINEAR_TEXT		TEXT("1500")
+#define VERSION_TEXT			TEXT("1.5")
 #define VERSION_STAGE			TEXT("") // "alpha", "beta", ""
