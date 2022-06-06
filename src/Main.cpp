@@ -562,11 +562,11 @@ LRESULT CALLBACK KeyboardProc(int ncode, WPARAM wparam, LPARAM lparam) {
 					EditSelections(SimpleEdit(IsShiftPressed() ? SCI_LINEENDWRAPEXTEND : SCI_LINEENDWRAP));
 					return TRUE;
 				}
-				else if (wparam == VK_BACK) {
+				else if (wparam == VK_BACK && editor.GetSelectionEmpty()) {
 					EditSelections(SimpleEdit(SCI_DELETEBACK));
 					return TRUE;
 				}
-				else if (wparam == VK_DELETE) {
+				else if (wparam == VK_DELETE && editor.GetSelectionEmpty()) {
 					EditSelections(SimpleEdit(SCI_CLEAR));
 					return TRUE;
 				}
